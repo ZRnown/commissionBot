@@ -635,17 +635,41 @@ async def on_interaction(interaction):
 
             elif button_id == 'invite_friend':
                 user_id = interaction.user.id
+                # 获取完整的成员信息（包含所有角色）
+                member = interaction.guild.get_member(user_id) if interaction.guild else None
+                if not member and interaction.guild:
+                    try:
+                        member = await interaction.guild.fetch_member(user_id)
+                    except Exception:
+                        member = interaction.user
+                else:
+                    member = member or interaction.user
+                
                 # 计算角色与佣金、邀请统计
-                allowed_role = get_highest_paid_role(interaction.user.roles)
+                allowed_role = get_highest_paid_role(member.roles)
                 role_name = allowed_role.name if allowed_role else "普通会员"
+                
+                # 调试日志：输出用户的所有角色ID和配置的角色ID集合
+                user_role_ids = [r.id for r in member.roles]
+                logging.debug(f"User {user_id} roles: {user_role_ids}")
+                logging.debug(f"Configured role IDs - Monthly: {MONTHLY_FEE_ROLE_ID_SET}, Annual: {ANNUAL_FEE_ROLE_ID_SET}, Partner: {PARTNER_ROLE_ID_SET}")
+                
                 # 开关：普通会员邀请资格
                 if (allowed_role is None) and (not ALLOW_BASIC_INVITER):
+                    # 提供更详细的错误信息
+                    error_msg = (
+                        f"当前未开放普通会员邀请资格。\n\n"
+                        f"您的角色ID: {', '.join(map(str, user_role_ids))}\n"
+                        f"配置的月费角色ID: {', '.join(map(str, MONTHLY_FEE_ROLE_ID_SET)) if MONTHLY_FEE_ROLE_ID_SET else '未配置'}\n"
+                        f"配置的年费角色ID: {', '.join(map(str, ANNUAL_FEE_ROLE_ID_SET)) if ANNUAL_FEE_ROLE_ID_SET else '未配置'}\n"
+                        f"配置的合伙人角色ID: {', '.join(map(str, PARTNER_ROLE_ID_SET)) if PARTNER_ROLE_ID_SET else '未配置'}"
+                    )
                     if not interaction.response.is_done():
-                        await interaction.response.send_message("当前未开放普通会员邀请资格。", ephemeral=True)
+                        await interaction.response.send_message(error_msg, ephemeral=True)
                     else:
-                        await interaction.followup.send("当前未开放普通会员邀请资格。", ephemeral=True)
+                        await interaction.followup.send(error_msg, ephemeral=True)
                     return
-                role_commission = commission_percent_for_inviter(interaction.user)
+                role_commission = commission_percent_for_inviter(member)
                 referred_users = db.get_referred_users(user_id)
                 invited_count = len(referred_users) if referred_users else 0
 
