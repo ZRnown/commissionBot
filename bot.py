@@ -44,6 +44,22 @@ invite_cache = {}
 
 LOCAL_TZ = ZoneInfo("Asia/Shanghai")
 
+# 付费角色ID合集，便于批量处理
+PAID_ROLE_ID_SET = MONTHLY_FEE_ROLE_ID_SET | ANNUAL_FEE_ROLE_ID_SET | PARTNER_ROLE_ID_SET
+
+async def get_channel_by_id(guild: discord.Guild | None, channel_id: int | None):
+    """尝试通过 ID 获取频道或线程，先本地缓存再 fetch。"""
+    if not guild or not channel_id:
+        return None
+    ch = guild.get_channel(channel_id)
+    if ch:
+        return ch
+    try:
+        ch = await guild.fetch_channel(channel_id)
+    except Exception:
+        ch = None
+    return ch
+
 def format_dt_local(dt: datetime) -> str:
     try:
         if dt.tzinfo is None:
@@ -358,6 +374,40 @@ async def slash_userstats(interaction: discord.Interaction, user: discord.Member
                 await interaction.followup.send(f"查询失败: {exc}", ephemeral=True)
         else:
             await interaction.followup.send(f"查询失败: {exc}", ephemeral=True)
+
+
+# Slash: /remove_paid_roles（仅管理员）移除指定用户的付费身份
+@app_commands.default_permissions(administrator=True)
+@bot.tree.command(name="remove_paid_roles", description="移除指定用户的付费身份（管理员）")
+@app_commands.describe(user="要移除付费身份的用户")
+async def slash_remove_paid_roles(interaction: discord.Interaction, user: discord.Member):
+    # 白名单检查
+    if SLASH_ALLOWED_USER_ID_SET and interaction.user.id not in SLASH_ALLOWED_USER_ID_SET:
+        await interaction.response.send_message("该命令仅限指定用户使用。", ephemeral=True)
+        return
+    # 管理员权限兜底
+    if not getattr(interaction.user, "guild_permissions", None) or not interaction.user.guild_permissions.administrator:
+        await interaction.response.send_message("只有管理员可以使用该命令。", ephemeral=True)
+        return
+    try:
+        member_roles = list(user.roles or [])
+        paid_roles = [r for r in member_roles if r.id in PAID_ROLE_ID_SET]
+        if not paid_roles:
+            await interaction.response.send_message(f"{user.mention} 没有可移除的付费身份。", ephemeral=True)
+            return
+        try:
+            await user.remove_roles(*paid_roles, reason="管理员移除付费身份")
+        except Exception as exc:
+            await interaction.response.send_message(f"移除失败：{exc}", ephemeral=True)
+            return
+        removed_names = ", ".join([r.name for r in paid_roles])
+        embed = discord.Embed(title="已移除付费身份", color=discord.Color.orange())
+        embed.add_field(name="用户", value=f"{user.mention} ({user})", inline=False)
+        embed.add_field(name="移除角色", value=removed_names, inline=False)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+    except Exception as exc:
+        logging.error(f"/remove_paid_roles failed: {exc}")
+        await interaction.response.send_message(f"操作失败: {exc}", ephemeral=True)
 
 @bot.event
 async def on_member_remove(member: discord.Member):
@@ -840,7 +890,7 @@ async def on_member_join(member: discord.Member):
         logging.error(f"Failed to store member {member} in database: {exc}")
 
     # 使用邀请通知频道
-    notification_channel = member.guild.get_channel(INVITE_NOTIFICATION_CHANNEL_ID)
+    notification_channel = await get_channel_by_id(member.guild, INVITE_NOTIFICATION_CHANNEL_ID)
     if notification_channel is None:
         logging.error(f"Invite notification channel {INVITE_NOTIFICATION_CHANNEL_ID} not found in guild {member.guild.id}.")
         return
@@ -937,12 +987,7 @@ async def on_member_update(before: discord.Member, after: discord.Member):
 
             # 发送佣金奖励通知到指定频道
             try:
-                notify_channel = after.guild.get_channel(COMMISSION_NOTIFICATION_CHANNEL_ID)
-                if notify_channel is None:
-                    try:
-                        notify_channel = await after.guild.fetch_channel(COMMISSION_NOTIFICATION_CHANNEL_ID)
-                    except Exception:
-                        notify_channel = None
+                notify_channel = await get_channel_by_id(after.guild, COMMISSION_NOTIFICATION_CHANNEL_ID)
                 if notify_channel:
                     inviter_mention = f"<@{inviter_id}>"
                     invited_mention = after.mention
