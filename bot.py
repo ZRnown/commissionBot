@@ -9,6 +9,8 @@ from config import (
     DISCORD_TOKEN,
     ALLOWED_CHANNEL_IDS,
     NOTIFICATION_CHANNEL_ID,
+    INVITE_NOTIFICATION_CHANNEL_ID,
+    COMMISSION_NOTIFICATION_CHANNEL_ID,
     GUILD_DISPLAY_NAME,
     PROXY_URL,
     INVITE_CHANNEL_ID,
@@ -656,18 +658,10 @@ async def on_interaction(interaction):
                 
                 # 开关：普通会员邀请资格
                 if (allowed_role is None) and (not ALLOW_BASIC_INVITER):
-                    # 提供更详细的错误信息
-                    error_msg = (
-                        f"当前未开放普通会员邀请资格。\n\n"
-                        f"您的角色ID: {', '.join(map(str, user_role_ids))}\n"
-                        f"配置的月费角色ID: {', '.join(map(str, MONTHLY_FEE_ROLE_ID_SET)) if MONTHLY_FEE_ROLE_ID_SET else '未配置'}\n"
-                        f"配置的年费角色ID: {', '.join(map(str, ANNUAL_FEE_ROLE_ID_SET)) if ANNUAL_FEE_ROLE_ID_SET else '未配置'}\n"
-                        f"配置的合伙人角色ID: {', '.join(map(str, PARTNER_ROLE_ID_SET)) if PARTNER_ROLE_ID_SET else '未配置'}"
-                    )
                     if not interaction.response.is_done():
-                        await interaction.response.send_message(error_msg, ephemeral=True)
+                        await interaction.response.send_message("当前未开放普通会员邀请资格。", ephemeral=True)
                     else:
-                        await interaction.followup.send(error_msg, ephemeral=True)
+                        await interaction.followup.send("当前未开放普通会员邀请资格。", ephemeral=True)
                     return
                 role_commission = commission_percent_for_inviter(member)
                 referred_users = db.get_referred_users(user_id)
@@ -845,9 +839,10 @@ async def on_member_join(member: discord.Member):
     except Exception as exc:
         logging.error(f"Failed to store member {member} in database: {exc}")
 
-    notification_channel = member.guild.get_channel(NOTIFICATION_CHANNEL_ID)
+    # 使用邀请通知频道
+    notification_channel = member.guild.get_channel(INVITE_NOTIFICATION_CHANNEL_ID)
     if notification_channel is None:
-        logging.error(f"Notification channel {NOTIFICATION_CHANNEL_ID} not found in guild {member.guild.id}.")
+        logging.error(f"Invite notification channel {INVITE_NOTIFICATION_CHANNEL_ID} not found in guild {member.guild.id}.")
         return
 
     guild_display_name = GUILD_DISPLAY_NAME or member.guild.name
@@ -942,10 +937,10 @@ async def on_member_update(before: discord.Member, after: discord.Member):
 
             # 发送佣金奖励通知到指定频道
             try:
-                notify_channel = after.guild.get_channel(NOTIFICATION_CHANNEL_ID)
+                notify_channel = after.guild.get_channel(COMMISSION_NOTIFICATION_CHANNEL_ID)
                 if notify_channel is None:
                     try:
-                        notify_channel = await after.guild.fetch_channel(NOTIFICATION_CHANNEL_ID)
+                        notify_channel = await after.guild.fetch_channel(COMMISSION_NOTIFICATION_CHANNEL_ID)
                     except Exception:
                         notify_channel = None
                 if notify_channel:

@@ -65,8 +65,15 @@ DATABASE_PATH=affiliate_system.db
 # 允许使用的频道ID（逗号分隔，支持多个频道）
 ALLOWED_CHANNEL_ID=123456789,987654321
 
-# 新成员通知频道ID
+# 通知频道配置
+# 新成员通知频道ID（必需，用于向后兼容）
 NOTIFICATION_CHANNEL_ID=123456789
+
+# 邀请通知频道ID（可选，新成员加入提醒，不设置则使用 NOTIFICATION_CHANNEL_ID）
+INVITE_NOTIFICATION_CHANNEL_ID=123456789
+
+# 佣金通知频道ID（可选，佣金奖励提醒，不设置则使用 NOTIFICATION_CHANNEL_ID）
+COMMISSION_NOTIFICATION_CHANNEL_ID=987654321
 
 # ===== 角色ID配置（必需）=====
 # 月费会员角色ID（逗号分隔，支持多个角色）
@@ -131,11 +138,12 @@ LOG_TO_CONSOLE=true
 4. 点击 "Reset Token" 或 "Copy" 获取 Token
 5. 将 Token 填入 `.env` 文件的 `DISCORD_TOKEN`
 
-### 3. 获取角色ID和频道ID
+### 3. 获取角色 ID 和频道 ID
 
 在 Discord 中启用开发者模式：
+
 1. 打开 Discord 设置 → 高级 → 启用开发者模式
-2. 右键点击角色或频道 → 复制ID
+2. 右键点击角色或频道 → 复制 ID
 
 ### 4. 邀请 Bot 到服务器
 
@@ -217,6 +225,7 @@ sudo systemctl status discord-bot
 ### 管理员命令
 
 1. **`/userstats [用户]`** - 查看用户统计
+
    - 不指定用户：列出所有有佣金的用户
    - 指定用户：查看该用户的详细信息
 
@@ -239,16 +248,18 @@ sudo systemctl status discord-bot
 ## 故障排查
 
 1. **Bot 无法启动**
+
    - 检查 `.env` 文件是否存在且配置正确
    - 检查 `DISCORD_TOKEN` 是否有效
    - 检查 Python 版本是否符合要求
 
 2. **无法创建邀请链接**
+
    - 确保 Bot 有 "Create Instant Invite" 和 "Manage Invites" 权限
    - 检查 `INVITE_CHANNEL_ID` 或 `ALLOWED_CHANNEL_ID` 是否正确
 
 3. **佣金计算不正确**
-   - 检查角色ID配置是否正确
+   - 检查角色 ID 配置是否正确
    - 检查价格配置是否正确
    - 查看日志文件了解详细错误信息
 
@@ -256,7 +267,7 @@ sudo systemctl status discord-bot
 
 - 确保 Bot 有足够的权限（特别是管理邀请的权限）
 - 定期备份数据库文件（`affiliate_system.db`）
-- 角色ID配置错误会导致佣金计算失败
+- 角色 ID 配置错误会导致佣金计算失败
 - 建议在测试服务器上先测试配置
 
 ## 许可证
