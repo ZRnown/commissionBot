@@ -75,37 +75,42 @@ INVITE_NOTIFICATION_CHANNEL_ID=123456789
 # 佣金通知频道ID（可选，佣金奖励提醒，不设置则使用 NOTIFICATION_CHANNEL_ID）
 COMMISSION_NOTIFICATION_CHANNEL_ID=987654321
 
-# ===== 角色ID配置（必需）=====
-# 月费会员角色ID（逗号分隔，支持多个角色）
+# ===== 等级配置（新版，支持任意数量的等级）=====
+# JSON格式配置，支持3个、4个或更多等级
+# 直接将JSON字符串放在环境变量中，支持单行或多行格式
+
+# 三个等级配置示例（推荐单行格式）：
+LEVELS_CONFIG=[{"name": "月费会员", "tier": 1, "role_ids": "111111111,222222222", "commission": 20, "price": 100.0}, {"name": "年费会员", "tier": 2, "role_ids": "333333333", "commission": 40, "price": 1000.0}, {"name": "合伙人", "tier": 3, "role_ids": "444444444", "commission": 70, "price": 5000.0}]
+
+# 四个等级配置示例（推荐单行格式）：
+LEVELS_CONFIG=[{"name": "月费会员", "tier": 1, "role_ids": "111111111,222222222", "commission": 20, "price": 100.0}, {"name": "年费会员", "tier": 2, "role_ids": "333333333", "commission": 40, "price": 1000.0}, {"name": "合伙人", "tier": 3, "role_ids": "444444444", "commission": 70, "price": 5000.0}, {"name": "钻石合伙人", "tier": 4, "role_ids": "555555555", "commission": 80, "price": 10000.0}]
+
+# 多行格式示例（可读性更好，但.env文件可能不支持）：
+# LEVELS_CONFIG=[
+#   {"name": "月费会员", "tier": 1, "role_ids": "111111111,222222222", "commission": 20, "price": 100.0},
+#   {"name": "年费会员", "tier": 2, "role_ids": "333333333", "commission": 40, "price": 1000.0},
+#   {"name": "合伙人", "tier": 3, "role_ids": "444444444", "commission": 70, "price": 5000.0},
+#   {"name": "钻石合伙人", "tier": 4, "role_ids": "555555555", "commission": 80, "price": 10000.0}
+# ]
+
+# ===== 向后兼容：旧版三个等级配置（可选）=====
+# 如果不使用LEVELS_CONFIG，可以使用以下旧版配置
 MONTHLY_FEE_ROLE_IDS=111111111,222222222
-
-# 年费会员角色ID
 ANNUAL_FEE_ROLE_IDS=333333333
-
-# 合伙人角色ID
 PARTNER_ROLE_IDS=444444444
 
-# ===== 佣金比例配置 =====
-# 月费会员佣金比例（百分比）
-MONTHLY_FEE_COMMISSION=20
-
-# 年费会员佣金比例（百分比）
-ANNUAL_FEE_COMMISSION=40
-
-# 合伙人佣金比例（百分比）
-PARTNER_COMMISSION=70
-
+# ===== 佣金比例配置（新版在LEVELS_CONFIG中配置）=====
+# 如果使用LEVELS_CONFIG，则佣金比例和价格在上面配置
 # 普通会员佣金比例（如果允许普通会员邀请）
 BASIC_INVITE_COMMISSION=0
 
-# ===== 价格配置 =====
-# 月费价格（USDT）
+# ===== 向后兼容：旧版佣金和价格配置 =====
+# 如果不使用LEVELS_CONFIG，使用以下配置
+MONTHLY_FEE_COMMISSION=20
+ANNUAL_FEE_COMMISSION=40
+PARTNER_COMMISSION=70
 MONTHLY_FEE_PRICE=100
-
-# 年费价格（USDT）
 ANNUAL_FEE_PRICE=1000
-
-# 合伙人价格（USDT）
 PARTNER_FEE_PRICE=5000
 
 # ===== 可选配置 =====
@@ -235,11 +240,19 @@ sudo systemctl status discord-bot
 
 ## 佣金计算规则
 
-- **月费会员**：当被邀请者升级到月费会员时，邀请者获得 `月费价格 × 月费佣金比例%` 的佣金
-- **年费会员**：当被邀请者从普通/月费升级到年费时，邀请者获得 `(年费价格 - 之前价格) × 年费佣金比例%` 的佣金
-- **合伙人**：当被邀请者升级到合伙人时，邀请者获得 `(合伙人价格 - 之前价格) × 合伙人佣金比例%` 的佣金
+系统支持配置任意数量的会员等级，每个等级都有对应的佣金比例和价格。
 
-**重要**：升级佣金按增量计算，避免重复计费。
+- 当被邀请者升级到某个等级时，邀请者获得 `(当前等级价格 - 之前等级价格) × 邀请者等级佣金比例%` 的佣金
+- 佣金按增量计算，避免重复计费
+- 邀请者等级越高，获得的佣金比例越高
+
+**示例**（假设配置了4个等级）：
+- 月费会员（20%佣金）：100 USDT
+- 年费会员（40%佣金）：1000 USDT
+- 合伙人（70%佣金）：5000 USDT
+- 钻石合伙人（80%佣金）：10000 USDT
+
+当被邀请者从普通会员升级到年费会员时，邀请者获得 `1000 × 邀请者佣金比例%` 的佣金。
 
 ## 日志文件
 

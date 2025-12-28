@@ -25,6 +25,9 @@ from config import (
     MONTHLY_FEE_ROLE_ID_SET,
     ANNUAL_FEE_ROLE_ID_SET,
     PARTNER_ROLE_ID_SET,
+    LEVELS_CONFIG,
+    ROLE_TO_LEVEL_MAP,
+    ALL_PAID_ROLE_ID_SET,
     SLASH_ALLOWED_USER_ID_SET,
 )
 from database import Database
@@ -45,7 +48,7 @@ invite_cache = {}
 LOCAL_TZ = ZoneInfo("Asia/Shanghai")
 
 # 付费角色ID合集，便于批量处理
-PAID_ROLE_ID_SET = MONTHLY_FEE_ROLE_ID_SET | ANNUAL_FEE_ROLE_ID_SET | PARTNER_ROLE_ID_SET
+PAID_ROLE_ID_SET = ALL_PAID_ROLE_ID_SET
 
 async def get_channel_by_id(guild: discord.Guild | None, channel_id: int | None):
     """尝试通过 ID 获取频道或线程，先本地缓存再 fetch。"""
@@ -101,24 +104,16 @@ def is_paid_role(role: discord.Role | None) -> bool:
     if not role:
         return False
     role_id = role.id
-    # 检查是否在三个等级的配置中
-    return (role_id in MONTHLY_FEE_ROLE_ID_SET or 
-            role_id in ANNUAL_FEE_ROLE_ID_SET or 
-            role_id in PARTNER_ROLE_ID_SET)
+    # 检查是否在配置的等级中
+    return role_id in ROLE_TO_LEVEL_MAP
 
 def role_tier(role: discord.Role | None) -> int:
-    """付费层级：普通=0，月=1，年=2，合伙=3。通过角色ID判断。"""
+    """付费层级：普通=0，其他等级根据配置的tier值"""
     if not role:
         return 0
     role_id = role.id
-    # 按优先级判断：合伙人 > 年费 > 月费
-    if role_id in PARTNER_ROLE_ID_SET:
-        return 3
-    if role_id in ANNUAL_FEE_ROLE_ID_SET:
-        return 2
-    if role_id in MONTHLY_FEE_ROLE_ID_SET:
-        return 1
-    return 0
+    level = ROLE_TO_LEVEL_MAP.get(role_id)
+    return level.tier if level else 0
 
 def get_highest_paid_role(user_roles):
     paid_roles = [r for r in (user_roles or []) if is_paid_role(r)]
@@ -157,27 +152,17 @@ def commission_percent_for_inviter(member: discord.Member) -> int:
     """通过角色ID获取邀请者的佣金比例"""
     role = get_highest_paid_role(member.roles)
     if role:
-        role_id = role.id
-        if role_id in PARTNER_ROLE_ID_SET:
-            return PARTNER_COMMISSION
-        if role_id in ANNUAL_FEE_ROLE_ID_SET:
-            return ANNUAL_FEE_COMMISSION
-        if role_id in MONTHLY_FEE_ROLE_ID_SET:
-            return MONTHLY_FEE_COMMISSION
+        level = ROLE_TO_LEVEL_MAP.get(role.id)
+        if level:
+            return level.commission
     return BASIC_INVITE_COMMISSION if ALLOW_BASIC_INVITER else 0
 
 def price_for_role(role: discord.Role) -> float:
     """通过角色ID获取角色价格"""
     if not role:
         return 0.0
-    role_id = role.id
-    if role_id in PARTNER_ROLE_ID_SET:
-        return float(PARTNER_FEE_PRICE or 0)
-    if role_id in ANNUAL_FEE_ROLE_ID_SET:
-        return float(ANNUAL_FEE_PRICE or 0)
-    if role_id in MONTHLY_FEE_ROLE_ID_SET:
-        return float(MONTHLY_FEE_PRICE or 0)
-    return 0.0
+    level = ROLE_TO_LEVEL_MAP.get(role.id)
+    return level.price if level else 0.0
 
 async def cache_guild_invites(guild: discord.Guild):
     try:
@@ -249,15 +234,15 @@ async def slash_bthlp(interaction: discord.Interaction):
         value="获取你的永久邀请链接 查看你的邀请统计和记录",
         inline=False
     )
+    # 动态生成佣金分配比例显示
+    commission_lines = []
+    for level in LEVELS_CONFIG:
+        commission_lines.append(f"{level.name} | {level.commission}% 佣金分成")
+    commission_text = "```\n" + "\n".join(commission_lines) + "\n```" if commission_lines else "暂无配置"
+
     embed.add_field(
         name="🎉佣金分配比例",
-        value="""
-```
-月费会员   | 20% 佣金分成
-年费会员   | 40% 佣金分成
-社区合伙人 ｜ 70% 佣金分成
-```
-""",
+        value=commission_text,
         inline=False
     )
     embed.add_field(
@@ -704,7 +689,7 @@ async def on_interaction(interaction):
                 # 调试日志：输出用户的所有角色ID和配置的角色ID集合
                 user_role_ids = [r.id for r in member.roles]
                 logging.debug(f"User {user_id} roles: {user_role_ids}")
-                logging.debug(f"Configured role IDs - Monthly: {MONTHLY_FEE_ROLE_ID_SET}, Annual: {ANNUAL_FEE_ROLE_ID_SET}, Partner: {PARTNER_ROLE_ID_SET}")
+                logging.debug(f"Configured paid role IDs: {ALL_PAID_ROLE_ID_SET}")
                 
                 # 开关：普通会员邀请资格
                 if (allowed_role is None) and (not ALLOW_BASIC_INVITER):
