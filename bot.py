@@ -754,12 +754,10 @@ async def on_interaction(interaction):
 
                 embed = discord.Embed(
                     title="邀请好友",
-                    description=(
-                        f"**{role_name}**，您的邀请佣金分成是 {role_commission}%\n"
-                        f"邀请链接\n\n```{valid_url}```"
-                    ),
+                    description=f"**{role_name}**，您的邀请佣金分成是 {role_commission}%",
                     color=discord.Color.green()
                 )
+                embed.add_field(name="邀请链接", value=f"```{valid_url}```", inline=False)
                 embed.add_field(name="邀请统计", value=f"已邀请人数：{invited_count}", inline=False)
                 embed.add_field(name="佣金分成", value=f"您将获得 {role_commission}% 的邀请佣金", inline=False)
                 embed.set_footer(text="分享这个链接来邀请朋友加入服务器！")
