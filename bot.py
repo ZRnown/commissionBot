@@ -760,7 +760,7 @@ async def on_interaction(interaction):
                 embed.add_field(name="邀请链接", value=f"```{valid_url}```", inline=False)
                 embed.add_field(name="邀请统计", value=f"已邀请人数：{invited_count}", inline=False)
                 embed.add_field(name="佣金分成", value=f"您将获得 {role_commission}% 的邀请佣金", inline=False)
-                embed.set_footer(text="分享这个链接来邀请朋友加入服务器！")
+                embed.set_footer(text="分享链接邀请好友加入服务器获得持续返佣，邀请的好友开通和续费会员，全部都有佣金提成！")
                 if not interaction.response.is_done():
                     await interaction.response.send_message(embed=embed, ephemeral=True)
                 else:
